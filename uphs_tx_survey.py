@@ -1,26 +1,44 @@
-## Plot "mean squared error" across providers, split by Mean/SRTR Score, and by With/Without SRTR Score
+def calculateDeviationFromMeanByObserver(df, start_scenario=1, stop_scenario=60):
+    """Calculates Mean Squared Error against the overall mean for that observer"""
+    mse = []
+    number_of_observers = df['Observer ID'].max()
+    scenarios = (df['Scenario ID'] >= start_scenario) & (df['Scenario ID'] <= stop_scenario)
 
-mse_mean_blind = calculateDeviationFromMeanByObserver(master_data, 1, 30)
-mse_mean = calculateDeviationFromMeanByObserver(master_data, 31, 60)
-mse_srtr_blind = calculateDeviationFromSRTRByObserver(master_data, 1, 30)
-mse_srtr = calculateDeviationFromSRTRByObserver(master_data, 31, 60)
-
-deviations = pd.DataFrame(
-               np.array([mse_mean_blind, mse_mean]),
-               index=['Deviation from Mean, without SRTR', 'Deviation from Mean, with SRTR'])
-
-changes = pd.DataFrame(
-               np.array([mse_mean - mse_mean_blind, mse_srtr - mse_srtr_blind]),
-               index=['Change in Deviation from Mean, without -> with', 'Change in Deviation from SRTR, without -> with'])
-
-plt.figure(figsize=(20, 10))
-
-plt.subplot(2, 1, 1)
-ax_1 = sns.boxplot(data=deviations.T, orient='h')
+    for observer in range(number_of_observers):
+        scores = df[scenarios & (df['Observer ID'] == observer+1)]['Observer Risk']
+        scores_mean = scores.mean()
+        n = len(scores)
+        mse.append((1/n)*np.sum((scores - scores_mean)**2))
+    return np.round(np.array(mse), 2)
 
 
-plt.subplot(2, 1, 2)
-ax_2 = sns.boxplot(data=changes.T, orient='h')
+def calculateDeviationFromSRTRByObserver(df, start_scenario=1, stop_scenario=60):
+    """Calculates Mean Squared Error against each SRTR score for the observer"""
+    mse = []
+    number_of_observers = df['Observer ID'].max()
+    scenarios = (df['Scenario ID'] >= start_scenario) & (df['Scenario ID'] <= stop_scenario)
+    
+    for observer in range(number_of_observers):
+        scores = df[scenarios & (df['Observer ID'] == observer+1)]['Observer Risk']
+        scores.index = [i for i in range(start_scenario-1, stop_scenario)]
+        srtr_scores = df[scenarios]['Scaled SRTR Risk'].drop_duplicates()
+        n = len(scores)
+        mse.append((1/n)*np.sum((scores - srtr_scores)**2))
+        # print(f'MSE, Observer {observer + 1}:\t{mse[observer]}  (numerator: {np.sum((x-x_mean)**2)}, denominator: {len(x)})')
+    return np.round(np.array(mse))
 
 
-plt.savefig('plot_BoxDeviations.jpg')
+df = master_data[master_data['Observer Decision'] == 'Yes']
+start_scenario = 1
+stop_scenario = 30
+mse = []
+number_of_observers = df['Observer ID'].max()
+scenarios = (df['Scenario ID'] >= start_scenario) & (df['Scenario ID'] <= stop_scenario)
+for observer in range(number_of_observers):
+    scores = df[scenarios & (df['Observer ID'] == observer+1)]['Observer Risk']
+    scores.index = [i for i in range(start_scenario-1, stop_scenario)]
+    srtr_scores = df[scenarios]['Scaled SRTR Risk'].drop_duplicates()
+    n = len(scores)
+    mse.append((1/n)*np.sum((scores - srtr_scores)**2))
+    # print(f'MSE, Observer {observer + 1}:\t{mse[observer]}  (numerator: {np.sum((x-x_mean)**2)}, denominator: {len(x)})')
+np.round(np.array(mse))
